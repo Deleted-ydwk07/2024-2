@@ -1,0 +1,128 @@
+2과제 진행 -> 2 part로 나눌 수 있다 
+베포자료 : https://github.com/cokia/test33 -> 여기서 buildspec.yaml 는 그대로 써도 된다
+                              < 2/2part >
+참고 지식 : warning 이라고 떠도 신경쓰지말것 -> 지장없음
+"vscode로 해보고 안되면 powershell에서 하기"
+2. 백엔드
+-> CodeCommit 생성
+-> CodePipeline 생성
+-> CodeBuild 생성
+-> CodeDeploy 생성
+-> ECS 생성
+-> ALB 생성
+______________________________________________________________________________________________________________________________________
+
+일단 과제 진행을 위해서 sudo yum install -y git과 sudo yum install -y docker 를 미리 설치해주기
+기본적으로 vpc와 ec2 그리고 ecs를 사용하니 ecr, 총 3개 ( vpc, ec2, ecr )를 만들어준다
+
+당연하게도 dockerfile 수정했으면 sudo service docker restart 해주기 그리고 sudo docker build -t <name> . 해주기
+경로를 git clone으로 받아온 파일로 ex) cd test33 <- 여기서 sudo docker build -t test33 . 이렇게 해주기
+
+일단 git clone 해서 배포파일 가져오기 -> cd <배포파일>
+______________________________________________________________________________________________________________________________________
+dockerfile jave 기본 형식 
+
+FROM openjdk:11
+
+WORKDIR /app
+
+COPY . /app/
+
+RUN chmod 777 gradlew
+
+RUN ./gradlew clean build
+
+RUN chmod 777 build/libs/*.jar
+
+EXPOSE 8080
+
+ENTRYPOINT ["java","-jar","build/libs/여기 뒷 부분 지우고 바꾸기 dockertest-0.0.1-SNAPSHOT.jar"]
+
+# 대회에서 -PLAIN 파일이 있으면 절대 쓰면 안됨
+지금 배포자료에서는 file이 하나 뿐이라 *.jar 이라고 한건데 여러개의 jar file이 있다면, * 대신에 파일명을 적으면 된다 ex) test.jar
+일단 빌드하기 sudo docker build -t test33 .
+sudo docker run -it --entrypoint "/bin/sh" <build 한 name> 하면 # 가 뜨는데 거기서 cd build -> cd libs -> ls 해서 나온 file name을 복사하고 exit로 나가기
+이걸 sudo nano dockerifle을 열고 ENTRYPOINT에 맨 마지막에 있는 *.jar를 지우고 붙여넣기 -> 이거 다 했으면 sudo service docker restart 하고 sudo docker buil <tag> . 
+
+그리고 sudo docker run <build한 name> -d . 하면 엄청 큰 문자로 spring 이라고 뜨면 잘 된거다 -> 그리고 맨 아래에서 2번째보면 port(s): 8080 가 뜨면 잘된것이다
+그리고 sudo docker run -p 8080:8080 -d <file build한 name> 해서 백그라운드로 실행해주기 ec2 tarminal 새창 켜서 curl localhost:8080하면 Hello World! 가 뜬다 -> 성공
+다 했으면 이제 codecommit 생성하기 
+______________________________________________________________________________________________________________________________________
+buildspec.yaml file은 그대로 써도 된다  : https://github.com/cokia/test33/blob/main/buildspec.yml
+단 ecr 이름과 계정 ID를 바꿔야한다  | 이거 들고 그대로 대회에서 사용 가능하다
+"<ecr name>-ecs-container" 이 부분은 container name을 바꿀 수 있다 
+
+version: 0.2
+env:
+  IMAGE_REPO_NAME: <ecr name>
+  IMAGE_TAG: latest
+  AWS_DEFAULT_REGION: ap-northeast-2
+  AWS_ACCOUNT_ID: "계정 ID"
+  ENV: prod
+phases:
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR...
+      - aws ecr get-login-password --region ap-northeast-2 | docker login --username AWS --password-stdin "계정 ID".dkr.ecr.ap-northeast-2.amazonaws.com
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Building the Docker image...
+      - docker build -t <ecr name> --build-arg ENV=prod .
+      - docker tag <ecr name> "계정 ID".dkr.ecr.ap-northeast-2.amazonaws.com/<ecr name>
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo Pushing the Docker image...
+      - docker push "계정 ID".dkr.ecr.ap-northeast-2.amazonaws.com/<ecr name>
+      - printf '[{"name":"<ecr name>-ecs-container","imageUri":"%s"}]' "계정 ID".dkr.ecr.ap-northeast-2.amazonaws.com/<ecr name> > imagedefinitions.json
+artifacts:
+  files: imagedefinitions.json
+______________________________________________________________________________________________________________________________________
+< codecommit >
+리포지토리 생성하기 -> IAM User 생성 -> 직접 정책 연결 -> codecommitpoweruser 권한 추가 -> iam 보안 자격 증명 -> codecommit에 대한 Https git 자격증명 생성하기
+codecommit https 복제해서 ec2-user에 붙여넣기
+git remote add codecommit <codecommit https > & git clone  하기 | git remote -v 하면 복제한 https가 뜬다 ( vscode로 하면 안된다 ) 
+
+그리고 git add . -> git commit -m "init" -> git push  하면 입력창이 나올텐데 그때 codecommit https 적기 ( codecommit 으로 가서 하기 ) -> 
+앞에 내용 하기 전에 배포파일의 모든 파일을 코드 커밋에 옮겨줘야한다 :  cp -r <배포파일 name>/* <codecommite name>/
+
+위에 했는데 에러가 뜬다? -> git commit --amend --reset-author 하고 ecs :wq! 하고 나가기 -> 그리고 다시 git push codecommit main 똑같이 하기
+그리고 codecommit 가서 리포지토리 클릭하면 파일이 업로드 된 걸 볼 수 있다 
+
+buildspec.yaml file도 ecr-user에 있는 codecommit 폴더로  복사해서 가져오기 -> cp buildspec.yaml ../<codecommit name>
+그리고 위에 있는 buildspec.yaml file nano로 열어서 수정하기 -> 다시 git add . -> git commit -m "fix" -> git push  ( codecommit https ) 
+git clone으로 받아온 폴더에서 진행 했다 이제 buildspec.yaml file를 이제 codecommit 폴더에 복사해서 가져와야한다 ex) sudo cp buildspec.yaml ../wsi-back
+이제 wsi-back에서도 git add . -> git commit -m "fix" -> git push 해주기 -> codecommit 가면 buildspec.yaml 이라는 파일이 생긴다 
+______________________________________________________________________________________________________________________________________
+< ecr > 
+리포지토리 생성하기 
+______________________________________________________________________________________________________________________________________
+<codepipeline> + <codebuild>
+파이프라인 생성 -> 소스 공급자는 codecommit -> 빌드 공급자는 codebuild 선택 ( 여기서 codebuild 만들기 ) -> 프로젝트 생성 누르기
+그리고 추가 구성 눌러서 "권한이 있음" 아래에 도커 이미지를 빌드하거나 빌드의 권한을 승격하려면 이 플래그를 활설화합니다. <- 이거는 꼭 꼭 활성화시키기 -> vpc는 굳이 선택 안해도 된다
+그리고 Buildspec부분에서 buildspec 파일 사용을 누르기 -> 이름은 설정안하고 넘어가기 왜? -> buildspec.yaml file이 있기때문 -> codePipeline으로 계속 누르고 나가기
+배포 공급자는 건너뛰기 -> codepipeline 생성하기 ( 5분정도 걸린다 ) -> 이러면 실패 한다 권한이 없어서 해결 법은 
+
+-> 보안 자격 증명가서 codebuild-wsi-codebuild-service-role 으로 긴 역할이 있을텐데 그거 눌러서 권한 추가 ->  정책 연결 -> EC2InstanceProfileForImageBuilderECRContainerBuilds ( 그냥 ecr 치고 제일 긴거 선택 후 권한 추가 누르기 )
+다시 codepipeline가서 실패학 작업 재시도 누르고 기다리기 -> 다 되면 codebuild -> 프로젝터 빌드 가서 성공했는지 보기 
+
+ECS 서비스까지 다 만들고 난 후
+cocdpipeline -> 편집 -> 맨 아래로 가서 스테이지 추가 -> 작업 그룹 추가 -> 작업 공급자는 ECS로 선택 -> 입력 아티팩트는 BuildArtifact -> 하고 아래 3개는 냅 두고 완료 누르고 -> 맨 위로 가서 저장 -> 변경 사항 릴리스 눌러주고 기다리기 ( 오래 걸림 )
+______________________________________________________________________________________________________________________________________
+< ECS > 
+ecs cluster은 이름만 설정하고 생성하기 -> ecs service 만들기 전에 태스크 정의부터 만들기
+
+ecs 태스크 정의  생성 -> 하기 전에 태스크 역할부터 만들기 -> IAM -> 역할 -> Elastic Container Service -> Elastic Container Service Task 선택 -> poweruseraccess 권한 주기 
+컨테이너 부분에서 이름은 buildspec.yml file의 23번줄 "<ecr name>-ecs-container" 이 부분으로 해주기 그리고 이미지 URI는 ecr URI로 하기 | port는 8080으로 바꾸기 하고 task 만들어주기 
+
+ecs service 생성 ( 하기전에 ALB 부터 만들고 가는걸 추천함 ) -> 네트워킹에서 vpc와 private subnet 선택 해주고 sg도 만들어주기 ( 8080 ) -> 로드 밸런싱도 선택하고 Pubilc IP 끄기 ( 대상그룹 하나 더 생김 )
+
+______________________________________________________________________________________________________________________________________
+< ALB > 
+알아서 만들고 subnet은 private로 만들고 sg는 80 port 열려있는 걸로 넣어주고 대상 그룹도 알아서 생성 후 ALB 생성하기 
+ 그리고 default 라는 sg에 8080 port와 80 port 인바운드로 만들기
+
+ALB 만들고 ecs service 생성할 때 리스너 만들게 되면 그걸로 바꾸기   
+
+ALB DNS 복사해서 새창에다가 붙여넣으면 Hello World! 가 뜬다 -> 성공 
