@@ -1,0 +1,38 @@
+2과제 진행 -> 2 part로 나눌 수 있다 
+베포자료 : https://github.com/cokia/ws-test-2
+                              < 2/1part >
+참고 지식 : warning 이라고 떠도 신경쓰지말것 -> 지장없음, error는 단연히 문제 있음
+
+1. 프론트 앤드
+-> Code Commit 생성
+-> CodePipeline 생성
+-> S3 버킷 생성
+-> CloudFront 생성
+
+기본적으로 VPC 생성하고 Ec2 bastion 생성하기
+bastion 연결 -> git, docker 깔기 ( sudo yum install -y git, sudo yum install -y docker )
+
+1-1. Code Commit 리포지토리 생성 후 HTTPS URL 복제하고 ( Code Commit -> 리포지토리 -> 코드 )
+      bastion ec2에 git clone <HTTPS URL> 하면 Username for '<HTTPS URL>': 뜨면서 입력하라고 나온다 이걸 해결하려면
+      해결책  -> IAM -> 사용자 생성 -> 직접 정책 연결 -> AWSCodeCommitPowerUser 권한 선택 후 생성
+      -> 만든 사용자 클릭 후 보안 자격증명 -> AWS codeCommit에 대한 HTTPS Git 자격 증명 생성하기 ( 사용자 이름과 암호는 note에 저장해놓기 )
+      -> 다시 bastion ec2창으로 가서 사용자 이름과 암호 복붙하기 ( 끝 )
+      -> git clone한 file이 있는지 cd로 이동하고 ls로 확인하기 -> 그리고 나서 sudo cp <filename> ../<codecommit name>하기 ( 똑같이 file  있는지 확인)
+      -> cd <codecommit name> -> git add . -> git commit -m "add" -> git push origin master 하기 ( iam user 생성했던 ID와 passwd 복붙하기 )
+      -> 그후 codecommit -> code로 가면 <filename> 이 있어야 한다
+
+1-2. codepipeline 시작하기 ( codecommit 창에서 pipeline 시작하기 CTRL + 우클릭하면 새창 생김 )
+      -> 소스 공급자는 ComdCommit 으로 선택, 리포지토리 이름 : code commit name
+      -> build 스테이지는 건너뛰기 -> 배포 공급자를 s3로 선택 -> 버킷 s3 선택 후 생성하기 ( 3분~5분 정도 걸림 )
+      -> codepipeline 생성 전에 s3를 만들어야지 codepipeline를 생성할 수 있다.
+
+1-3. 아직까지 ( codepipeline 생성 안함 ) -> s3 평소대로 생성하기
+      -> codepipeline 생성 후 s3 객체를 보면 <filename> 이 업로드 되어있다
+
+1-4. CloudFront 배포 생성           
+      -> Origin domain : codepipeline X, s3 <name> O
+      -> Origin path 형식 : /<name> |  ( "문제에서 나올때는 기본 경로를 ~~로 하세요" 로 나올 수 있음 )
+      -> 원본 access -> Legacy access identities 선택 후 새 OAI 생성 -> 버킷 정책은 "예, 버킷 정책 업데이트" 선택 -> 생성
+      -> 잘 되었으면 새창에서 https://<cloudfront>/index.html 하면 문구가 떠야함
+      -> 만들고나서 Origin path 추가하고 싶으면 원본으로 가서 원본 선택 후 편집  
+      -> codecommit가서 파일 편집해서 파일 내용을 바꿀 수 있다
