@@ -1,6 +1,6 @@
 2과제 진행 -> 2 part로 나눌 수 있다 
 베포자료 : https://github.com/cokia/ws-test-2
-                              < 2/1part >
+                              < 2/1part >https://github.com/Deleted-ydwk07/2024-2/blob/main/%ED%94%84%EB%A1%A0%ED%8A%B8%20%EC%97%94%EB%93%9C
 참고 지식 : warning 이라고 떠도 신경쓰지말것 -> 지장없음, error는 단연히 문제 있음
 
 1. 프론트 앤드
@@ -32,7 +32,7 @@ bastion 연결 -> git, docker 깔기 ( sudo yum install -y git, sudo yum install
 1-4. CloudFront 배포 생성
       -> Origin domain : codepipeline X, s3 <name> O
       -> Origin path 형식 : /<file name> |  ( "문제에서 나올때는 기본 경로를 ~~로 하세요" 로 나올 수 있음 )
-      -> 원본 access -> Legacy access identities 선택 후 새 OAI 생성 -> 버킷 정책은 "예, 버킷 정책 업데이트" 선택 -> 뷰어 프로토콜 정책은 "Redirect HTTP to HTTPS" -> 웹 애플리케이션 방화벽(WAF)은 "보안 보호 비활성화" -> IPv6는 "끄기" -> 생성
+      -> 원본 access -> Legacy access identities 선택 후 새 OAI 생성 -> 버킷 정책은 "예, 버킷 정책 업데이트" 선택 -> 뷰어 프로토콜 정책은 ( alb 연결시 or http로 접속시 https로 접근이 되어야합니다 ) 라고 하면 "Redirect HTTP to HTTPS" -> 웹 애플리케이션 방화벽(WAF)은 "보안 보호 비활성화" -> IPv6는 "끄기" -> 생성
       -> 잘 되었으면 새창에서 https://<cloudfront 도메인>/index.html 하면 문구가 떠야함 (문구가 안뜨면)
       -> 문구가 안뜰때 해결법 : 만들고나서 원본으로 가서 원본 선택 후 편집에서 origin path에 있는 "index.html" 지우고 -> 버킷 정책은 "예, 버킷 정책 업데이트" -> 변경 사항 저장
       -> 다시 https://<cloudfront 도메인>/index.html 하면 문구가 뜸
